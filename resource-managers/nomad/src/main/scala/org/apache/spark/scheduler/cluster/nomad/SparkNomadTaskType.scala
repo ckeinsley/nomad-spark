@@ -18,8 +18,10 @@
 package org.apache.spark.scheduler.cluster.nomad
 
 import java.net.URI
+import java.net.URLDecoder
 import java.util
 import java.util.Collections.singletonList
+import java.nio.charset.StandardCharsets
 
 import scala.collection.JavaConverters._
 
@@ -273,9 +275,17 @@ private[spark] abstract class SparkNomadTaskType(
 
   private def asFileAndArtifact(
       jobConf: SparkNomadJob.CommonConf,
-      url: URI,
+      fullUrl: URI,
       unarchive: Boolean
   ): (URI, Option[TaskArtifact]) = {
+    val decodedlUrl = URLDecoder.decode(fullUrl.toString, StandardCharsets.UTF_8.name())
+    val missingForwardSlashInHttps = decodedlUrl != null
+                                    && decodedlUrl.contains("https:/")
+                                    && !decodedlUrl.contains("https://")
+    val correctedUrl = if (missingForwardSlashInHttps) decodedlUrl.replaceAll("https:/","https://")
+                        else decodedFullUrl
+    val cleanUrl = correctedUrl.replaceAll("\\$\\{[a-zA-Z_.]*\\}:\\$\\{[a-zA-Z_.]*\\}\\@", "")
+    val url = new URI(cleanUrl)
     url.getScheme match {
       case "local" => url -> None
       case null | "file" =>
@@ -292,7 +302,8 @@ private[spark] abstract class SparkNomadTaskType(
         val file = new URI("file://" + workDir + Utils.decodeFileNameInURI(url))
         val artifact = new TaskArtifact()
           .setRelativeDest(workDir)
-          .setGetterSource(url.toString)
+          .setGetterSource(correctedUrl)
+        // Nomad supports variables in the URL, so we use this version of the URL which still has the variables.
         if (!unarchive) {
           val options = Map("archive" -> "false")
           artifact.setGetterOptions(options.asJava)

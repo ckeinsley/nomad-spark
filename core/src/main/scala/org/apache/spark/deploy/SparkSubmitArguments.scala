@@ -535,8 +535,14 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
       } else {
         opt
       }
-    isPython = SparkSubmit.isPython(opt)
-    isR = SparkSubmit.isR(opt)
+    /** This allows for you to add variables for basic auth in this format:
+     * ${NOMAD_META_USER}:${NOMAD_META_PASS}
+     * See Nomad docs on Variable Interpolation for more information
+     * https://www.nomadproject.io/docs/runtime/interpolation
+     * */
+    val cleanOptWithoutVariable = opt.replaceAll("\\$\\{[a-zA-Z_.]*\\}:\\$\\{[a-zA-Z_.]*\\}\\@", "")
+    isPython = SparkSubmit.isPython(cleanOptWithoutVariable)
+    isR = SparkSubmit.isR(cleanOptWithoutVariable)
     false
   }
 
